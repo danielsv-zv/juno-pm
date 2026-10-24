@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
+<title>Juno Signal Desk</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@500;700;900&family=Red+Hat+Text:wght@400;500;700&family=Red+Hat+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one working screen. Top bar with tabs, command bar, then cluster list (left) + draft (right). Low-fi on purpose: greys, dashed stubs, Zebra yellow only for focus and actions. */
+:root{
+  --bg:#f6f5f1; --surface:#ffffff; --fg:#1c1b18; --muted:#6b685f; --line:#d9d6cc;
+  --brand:#FCCF3F; --brand-ink:#1c1b18; --brand-soft:#fdf1c4;
+  --ok:#2f7d4f; --warn:#a86a00; --crit:#b3261e; --ok-bg:#e3f1e8; --warn-bg:#fbefd6; --crit-bg:#f8e1df;
+  --display:"Red Hat Display",system-ui,sans-serif; --text:"Red Hat Text",system-ui,sans-serif; --mono:"Red Hat Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#161613; --surface:#201f1b; --fg:#f1efe8; --muted:#a29e93; --line:#3a3832;
+  --brand-soft:#3b3420; --ok:#6cc08d; --warn:#e4b04f; --crit:#f08a82; --ok-bg:#1f3327; --warn-bg:#3a2f18; --crit-bg:#3d2220; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#161613; --surface:#201f1b; --fg:#f1efe8; --muted:#a29e93; --line:#3a3832;
+  --brand-soft:#3b3420; --ok:#6cc08d; --warn:#e4b04f; --crit:#f08a82; --ok-bg:#1f3327; --warn-bg:#3a2f18; --crit-bg:#3d2220; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font-family:var(--text);font-size:14px;line-height:1.5;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 40px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.mono{font-family:var(--mono);font-size:12px}
+.muted{color:var(--muted)}
+
+/* top bar */
+.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.logo{font-family:var(--display);font-weight:900;font-size:22px;letter-spacing:-.02em;display:flex;align-items:center;gap:8px}
+.logo i{display:inline-block;width:14px;height:22px;background:repeating-linear-gradient(135deg,var(--fg) 0 3px,var(--brand) 3px 6px);border-radius:2px}
+.lofi{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;border:1px dashed var(--muted);color:var(--muted);padding:2px 6px;border-radius:3px}
+.tabs{display:flex;gap:2px;margin-left:auto;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:3px}
+.tab{border:0;background:transparent;padding:6px 12px;border-radius:6px;font-weight:500}
+.tab[aria-selected="true"]{background:var(--brand);color:var(--brand-ink)}
+
+/* ingest strip */
+.strip{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;font-size:13px;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block;margin-right:6px}
+.chip{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-radius:10px;padding:1px 7px;background:var(--surface);color:var(--fg);white-space:nowrap}
+
+/* command bar */
+.cmd{display:flex;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:6px}
+.cmd input{flex:1;min-width:0;border:0;background:transparent;padding:8px;outline:none}
+.mic{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:0 12px;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.mic.on{background:var(--crit-bg);border-color:var(--crit);color:var(--crit)}
+.go{border:0;background:var(--brand);color:var(--brand-ink);font-weight:700;border-radius:8px;padding:0 16px}
+.reply{font-size:13px;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--surface)}
+.reply.refuse{border-color:var(--crit);background:var(--crit-bg)}
+
+/* main grid */
+.grid{display:grid;grid-template-columns:320px 1fr;gap:14px;align-items:start}
+@media (max-width:820px){.grid{grid-template-columns:1fr}.tabs{margin-left:0}}
+.col-h{font-family:var(--display);font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);display:flex;justify-content:space-between;align-items:baseline;margin:0 0 8px}
+.list{display:flex;flex-direction:column;gap:8px}
+.cl{text-align:left;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.cl[aria-current="true"]{border-color:var(--fg);box-shadow:inset 4px 0 0 var(--brand)}
+.cl-t{font-weight:700;line-height:1.3}
+.cl-m{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.state{font-size:11px;font-weight:700;border-radius:10px;padding:1px 8px;white-space:nowrap}
+.s-ready{background:var(--ok-bg);color:var(--ok)}
+.s-ask{background:var(--warn-bg);color:var(--warn)}
+.s-watch{background:var(--bg);color:var(--muted);border:1px dashed var(--line)}
+.s-done{background:var(--brand-soft);color:var(--fg)}
+.count{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--muted)}
+
+/* draft */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;min-width:0}
+.ph{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+.ph h2{font-family:var(--display);font-size:20px;margin:0;line-height:1.2;text-wrap:balance;flex:1 1 280px}
+.sub{display:flex;gap:2px;padding:0 18px;border-bottom:1px solid var(--line)}
+.sub button{border:0;background:transparent;padding:10px 10px;border-bottom:2px solid transparent;color:var(--muted);font-weight:500}
+.sub button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--brand)}
+.body{padding:16px 18px;display:flex;flex-direction:column;gap:16px}
+.sec h3{font-family:var(--display);font-size:13px;text-transform:uppercase;letter-spacing:.06em;margin:0 0 6px;color:var(--muted)}
+.sec p,.sec ul,.sec ol{margin:0}
+.sec ul,.sec ol{padding-left:20px;display:flex;flex-direction:column;gap:4px}
+.src{font-family:var(--mono);font-size:11px;color:var(--muted);border-bottom:1px dotted var(--muted);cursor:help}
+.tag{font-family:var(--mono);font-size:11px;font-weight:500;border-radius:3px;padding:0 5px;margin-right:4px}
+.t-a{background:var(--warn-bg);color:var(--warn)}
+.t-r{background:var(--crit-bg);color:var(--crit)}
+.decisions{background:var(--brand-soft);border-radius:10px;padding:12px 14px}
+.decisions li{list-style:none;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;justify-content:space-between}
+.decisions ul{padding:0;gap:8px}
+.opts{display:flex;gap:4px;flex-wrap:wrap}
+.opt{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:2px 8px;font-size:12px}
+.opt[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:14px 18px;border-top:1px solid var(--line)}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 14px;font-weight:500}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--brand-ink);font-weight:700}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.guard{font-size:12px;color:var(--muted);margin-left:auto}
+.sig{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.sig-h{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px;color:var(--muted)}
+.q{display:flex;flex-direction:column;gap:4px}
+.q input{border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:var(--bg)}
+textarea{width:100%;min-height:80px;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--bg)}
+.banner{border-radius:8px;padding:8px 12px;font-size:13px}
+.b-ok{background:var(--ok-bg);color:var(--ok)}
+.b-warn{background:var(--warn-bg);color:var(--warn)}
+
+/* stub tabs */
+.stub{border:1.5px dashed var(--line);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:14px;background:var(--surface)}
+.stub h2{font-family:var(--display);margin:0;font-size:20px}
+.docs{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.doc{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.drop{border:1.5px dashed var(--muted);border-radius:10px;padding:18px;text-align:center;color:var(--muted)}
+.ghost{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.gbox{height:110px;border-radius:8px;background:repeating-linear-gradient(135deg,var(--bg) 0 8px,var(--surface) 8px 16px);border:1px solid var(--line);display:flex;align-items:flex-end;padding:8px;font-size:12px;color:var(--muted)}
+.foot{font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 14px}
+@media (prefers-reduced-motion:no-preference){.cl,.btn,.tab{transition:background .12s,border-color .12s}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="logo"><i aria-hidden="true"></i>Juno</div>
+    <span class="lofi">Lo-fi prototype · sample data</span>
+    <nav class="tabs" role="tablist" aria-label="Views">
+      <button class="tab" role="tab" aria-selected="true" data-view="signals" id="tab-signals">Signals</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="knowledge" id="tab-knowledge">Knowledge</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="analytics" id="tab-analytics">Analytics</button>
+    </nav>
+  </header>
+
+  <div class="strip">
+    <span><span class="dot"></span>Auto-ingested since 08:00: <b id="ingest-total">13</b> signals</span>
+    <span class="chip">Email 5</span><span class="chip">Teams 3</span><span class="chip">Slack 5</span>
+    <span class="mono">Last sync 08:42 · RocketShip sample inbox</span>
+  </div>
+
+  <form class="cmd" id="cmd" autocomplete="off">
+    <button type="button" class="mic" id="mic" aria-pressed="false">● Dictate</button>
+    <input id="cmd-in" placeholder="Tell Juno what to do, e.g. &quot;Draft the export timeout spec&quot;" aria-label="Command for Juno">
+    <button class="go" type="submit">Run</button>
+  </form>
+  <div id="reply" class="reply" hidden></div>
+
+  <!-- SIGNALS: the one screen under test -->
+  <section id="view-signals" class="grid">
+    <div>
+      <p class="col-h"><span>Problems Juno found</span><span class="mono" style="text-transform:none;letter-spacing:0">by signal count</span></p>
+      <div class="list" id="clusters"></div>
+    </div>
+    <article class="panel" id="draft" aria-live="polite"></article>
+  </section>
+
+  <!-- KNOWLEDGE: stub -->
+  <section id="view-knowledge" class="stub" hidden>
+    <h2>Knowledge</h2>
+    <p class="muted">Docs Juno reads before drafting. It flags any draft that conflicts with a logged decision. Not part of this test.</p>
+    <div class="docs" id="docs"></div>
+    <label class="drop" for="upload">Drop files here or click to add (team docs, decisions, studies, prototypes)
+      <input id="upload" type="file" multiple hidden>
+    </label>
+  </section>
+
+  <!-- ANALYTICS: stub -->
+  <section id="view-analytics" class="stub" hidden>
+    <h2>Analytics</h2>
+    <p class="muted">Next pass. Product usage beside the signals, so a draft can cite real numbers instead of assumptions. Not part of this test.</p>
+    <div class="ghost">
+      <div class="gbox">Weekly active accounts</div>
+      <div class="gbox">Export success rate</div>
+      <div class="gbox">Onboarding completion</div>
+      <div class="gbox">Tickets by theme</div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <span>Runs on <span class="mono">01-prompting/skill-file.md</span></span>
+    <span>Juno drafts. The PM decides.</span>
+    <span>Fictional company and customers.</span>
+  </footer>
+</div>
+
+<script>
+const CLUSTERS=[
+ {id:"export",title:"Bulk export times out on large accounts",state:"ready",
+  signals:[
+   {ch:"Email",who:"Ops lead · Northwind Freight",t:"08:05",txt:"Export of last quarter's shipments failed again after about 2 minutes. We need this for our month-end close."},
+   {ch:"Slack",who:"#support · Support agent",t:"08:11",txt:"Third export timeout this week. All three accounts have more than 50k rows."},
+   {ch:"Teams",who:"CSM · Brightline Retail",t:"08:19",txt:"Customer is exporting one week at a time as a workaround. Not happy."},
+   {ch:"Email",who:"Finance manager · Northwind Freight",t:"08:27",txt:"Can you confirm when this will be fixed? Otherwise we will escalate."},
+   {ch:"Slack",who:"#sales · Account exec",t:"08:33",txt:"Prospect Halden Group asked if we support scheduled exports to S3."}
+  ],
+  draft:{
+   problem:"Exports fail on accounts with large datasets, so customers cannot finish month-end reporting. Customers are building manual workarounds and one is close to escalating.",
+   evidence:[
+    ["3 timeout reports this week, all on accounts over 50k rows.","Slack #support"],
+    ["Northwind Freight is blocked on its month-end close.","Email · Ops lead"],
+    ["Brightline Retail exports week by week as a workaround.","Teams · CSM"],
+    ["Northwind asks for a fix date and mentions escalation.","Email · Finance manager"]
+   ],
+   ar:[
+    ["A","The timeout is about 2 minutes.","source: API gateway config"],
+    ["A","50k rows is the breaking point.","source: export job logs"],
+    ["R","The S3 scheduled-export request is a different feature. Bundling it grows scope.","mitigation: keep it out of this spec"],
+    ["R","Northwind escalates before a fix ships.","mitigation: PM decides on an interim reply"]
+   ],
+   goal:"Large exports complete reliably.",
+   story:"As an ops lead, I want to export a full quarter of data in one go so that I can close the month without manual work.",
+   ac:["Exports up to 500k rows (Assumption, source: largest account in billing) complete without timeout.","Long exports run in the background and notify the user when the file is ready.","A failed export shows a clear error and a retry option.","Fix is validated against the 3 reported accounts."],
+   decisions:[
+    ["Reply to Northwind with a fix date?",["Reply without date","Commit a date","Wait"]],
+    ["Scheduled S3 export",["Separate spec","Drop for now"]],
+    ["Is 500k rows the right target?",["Yes","Change it"]]
+   ]
+  }},
+ {id:"onboarding",title:"Onboarding feels too long",state:"ask",
+  signals:[
+   {ch:"Email",who:"Admin · Pellworth Clinics (new customer)",t:"08:09",txt:"It took us two full days to finish setup. Too many steps."},
+   {ch:"Slack",who:"#product · Data analyst",t:"08:21",txt:"Onboarding completion is up 8 points this month."},
+   {ch:"Teams",who:"Account exec",t:"08:40",txt:"Prospect wants a shorter onboarding flow before signing."}
+  ],
+  conflict:"A new customer says onboarding is too long, while analytics shows completion rising. The analytics note gives a change but no baseline or period.",
+  questions:["What is the completion rate before and after this month, and over what period?","Did Pellworth Clinics go through the old flow or the new one?","Is the prospect's request a deal blocker or a nice-to-have?"]
+ },
+ {id:"sso",title:"SAML SSO for enterprise accounts",state:"ready",
+  signals:[
+   {ch:"Slack",who:"#sales · Account exec",t:"08:15",txt:"We told Halden Group they would have SSO in Q1. Can product confirm?"},
+   {ch:"Email",who:"IT admin · Brightline Retail",t:"08:36",txt:"Is SAML SSO on the roadmap? Our security review requires it before renewal."}
+  ],
+  draft:{
+   problem:"Enterprise accounts cannot pass security review without SAML SSO, which puts one renewal and one new deal at risk.",
+   evidence:[
+    ["Brightline Retail's renewal depends on SSO passing security review.","Email · IT admin"],
+    ["Sales told Halden Group SSO would ship in Q1.","Slack #sales"]
+   ],
+   ar:[
+    ["A","Brightline's renewal is within 6 months.","source: CRM renewal date"],
+    ["R","The Q1 promise was made without engineering input.","mitigation: PM confirms or renegotiates"],
+    ["R","Only 2 signals. Demand beyond these two accounts is unknown.","mitigation: check CRM for other enterprise requests"]
+   ],
+   goal:"Enterprise admins can enforce SSO for their users.",
+   story:"As an IT admin, I want my team to sign in through our identity provider so that we pass our security review.",
+   ac:["Admins can connect one SAML 2.0 identity provider.","Admins can make SSO mandatory for their workspace.","Users without SSO access see a clear message on login."],
+   decisions:[
+    ["Q1 date promised to Halden",["Confirm","Renegotiate","Drop"]],
+    ["Build now, or wait for more demand?",["Build now","Wait"]]
+   ]
+  }},
+ {id:"dark",title:"Dark mode in the mobile app",state:"watch",
+  signals:[{ch:"Slack",who:"#feedback · Customer via in-app form",t:"08:30",txt:"Please add dark mode to the mobile app."}],
+  watch:"Only 1 signal and no business impact stated. Juno keeps watching and will surface it again if more signals arrive."}
+];
+const DOCS=[
+ ["Decision log","Team · updated 2 days ago","Export limits stay at 50k rows until Q3 (decided 12 Sep)."],
+ ["Onboarding study","Daniel · PDF","Interviews with 8 new admins, flow v2."],
+ ["Prototype v0 notes","Design · Markdown","First pass of the export progress screen."]
+];
+const STATE_LABEL={ready:["Draft ready","s-ready"],ask:["Needs your answers","s-ask"],watch:["Watching","s-watch"],done:["Approved","s-done"]};
+let current="export", subview="draft";
+const pmChoices={};
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function channels(c){const m={};c.signals.forEach(s=>m[s.ch]=(m[s.ch]||0)+1);return Object.entries(m).map(([k,v])=>`<span class="chip">${k} ${v}</span>`).join("")}
+function renderList(){
+  const sorted=[...CLUSTERS].sort((a,b)=>b.signals.length-a.signals.length);
+  $("#clusters").innerHTML=sorted.map(c=>{const [l,cls]=STATE_LABEL[c.state];return `
+   <button class="cl" data-id="${c.id}" aria-current="${c.id===current}">
+     <span class="cl-t">${esc(c.title)}</span>
+     <span class="cl-m"><span class="state ${cls}">${l}</span>${channels(c)}<span class="count">${c.signals.length} signal${c.signals.length>1?"s":""}</span></span>
+   </button>`}).join("");
+}
+function wordsOf(d){return [d.problem,...d.evidence.map(e=>e[0]),...d.ar.map(a=>a[1]+" "+a[2]),d.goal,d.story,...d.ac,...d.decisions.map(x=>x[0])].join(" ").split(/\s+/).filter(Boolean).length}
+function renderDraft(){
+  const c=CLUSTERS.find(x=>x.id===current);
+  const [l,cls]=STATE_LABEL[c.state];
+  let head=`<div class="ph"><h2>${esc(c.title)}</h2><span class="state ${cls}">${l}</span>${c.draft?`<span class="mono muted">${wordsOf(c.draft)} / 400 words</span>`:""}</div>
+   <div class="sub" role="tablist"><button role="tab" data-sub="draft" aria-selected="${subview==="draft"}">${c.draft?"Draft spec":"Juno's read"}</button><button role="tab" data-sub="raw" aria-selected="${subview==="raw"}">Raw signals (${c.signals.length})</button></div>`;
+  let body="", actions="";
+  if(subview==="raw"){
+    body=c.signals.map(s=>`<div class="sig"><div class="sig-h"><span class="chip">${s.ch}</span><span>${esc(s.who)}</span><span class="mono">${s.t}</span></div><div>${esc(s.txt)}</div></div>`).join("");
+  } else if(c.draft){
+    const d=c.draft;
+    body=`
+     ${c.state==="done"?`<div class="banner b-ok">Approved by PM. Saved to Knowledge as a spec. Nothing was sent outside the PM.</div>`:""}
+     <div class="sec"><h3>1 · Problem</h3><p>${esc(d.problem)}</p></div>
+     <div class="sec"><h3>2 · Evidence</h3><ul>${d.evidence.map(e=>`<li>${esc(e[0])} <span class="src" title="Open in Raw signals">${esc(e[1])}</span></li>`).join("")}</ul></div>
+     <div class="sec"><h3>3 · Assumptions and risks</h3><ol>${d.ar.map(a=>`<li><span class="tag ${a[0]==="A"?"t-a":"t-r"}">${a[0]==="A"?"Assumption":"Risk"}</span>${esc(a[1])} <span class="muted">${esc(a[2])}</span></li>`).join("")}</ol></div>
+     <div class="sec"><h3>4 · Proposed spec</h3><p><b>Goal.</b> ${esc(d.goal)}</p><p><b>User story.</b> ${esc(d.story)}</p><p style="margin-top:6px"><b>Acceptance criteria</b></p><ol>${d.ac.map(a=>`<li>${esc(a)}</li>`).join("")}</ol></div>
+     <div class="sec decisions"><h3>5 · PM decisions needed</h3><ul>${d.decisions.map((x,i)=>`<li><span>${esc(x[0])}</span><span class="opts">${x[1].map(o=>`<button class="opt" data-dec="${c.id}:${i}" data-val="${esc(o)}" aria-pressed="${pmChoices[c.id+":"+i]===o}">${esc(o)}</button>`).join("")}</span></li>`).join("")}</ul></div>
+     <div id="correct-box" hidden><textarea id="correct-txt" placeholder="Tell Juno what to change. It redrafts and keeps the same structure."></textarea></div>`;
+    const decided=d.decisions.every((x,i)=>pmChoices[c.id+":"+i]);
+    actions=`<div class="actions">
+      <button class="btn primary" id="approve" ${c.state==="done"||!decided?"disabled":""}>Approve draft</button>
+      <button class="btn" id="correct" ${c.state==="done"?"disabled":""}>Correct</button>
+      <span class="guard">${decided?"Ready to approve.":"Answer the decisions to approve."} Juno never commits dates or shares outside the PM.</span></div>`;
+  } else if(c.state==="ask"){
+    body=`<div class="banner b-warn">No draft yet. The signals conflict, so Juno asks first.</div>
+     <div class="sec"><h3>Conflict</h3><p>${esc(c.conflict)}</p></div>
+     <div class="sec"><h3>Questions (one round)</h3><div style="display:flex;flex-direction:column;gap:10px">${c.questions.map((q,i)=>`<label class="q" for="q${i}">${esc(q)}<input id="q${i}" placeholder="Your answer"></label>`).join("")}</div></div>`;
+    actions=`<div class="actions"><button class="btn primary" id="answer">Send answers to Juno</button><span class="guard">Juno drafts once it has these.</span></div>`;
+  } else if(c.state==="queued"){
+    body=`<div class="banner b-ok">Answers received. Juno is drafting this spec (simulated in this prototype).</div>`;
+  } else {
+    body=`<div class="sec"><h3>Why there is no draft</h3><p>${esc(c.watch)}</p></div>`;
+    actions=`<div class="actions"><button class="btn" id="force">Draft anyway</button><span class="guard">Every claim would be an assumption.</span></div>`;
+  }
+  $("#draft").innerHTML=head+`<div class="body">${body}</div>`+actions;
+}
+function select(id){current=id;subview="draft";renderList();renderDraft();}
+document.addEventListener("click",e=>{
+  const cl=e.target.closest(".cl"); if(cl) return select(cl.dataset.id);
+  const sb=e.target.closest("[data-sub]"); if(sb){subview=sb.dataset.sub;return renderDraft();}
+  if(e.target.closest(".src")){subview="raw";return renderDraft();}
+  const op=e.target.closest(".opt"); if(op){pmChoices[op.dataset.dec]=op.dataset.val;return renderDraft();}
+  const c=CLUSTERS.find(x=>x.id===current);
+  if(e.target.id==="approve"){c.state="done";renderList();return renderDraft();}
+  if(e.target.id==="correct"){const b=$("#correct-box");b.hidden=!b.hidden;if(!b.hidden)$("#correct-txt").focus();return;}
+  if(e.target.id==="answer"){c.state="queued";STATE_LABEL.queued=["Drafting","s-ready"];renderList();return renderDraft();}
+  if(e.target.id==="force"){say("Juno: I can draft it, but with 1 signal every line would be labeled Assumption. Add more signals or tell me the business impact first.");return;}
+  const tab=e.target.closest(".tab"); if(tab){
+    document.querySelectorAll(".tab").forEach(t=>t.setAttribute("aria-selected",t===tab));
+    ["signals","knowledge","analytics"].forEach(v=>$("#view-"+v).hidden=v!==tab.dataset.view);
+  }
+});
+function say(msg,refuse){const r=$("#reply");r.hidden=false;r.className="reply"+(refuse?" refuse":"");r.textContent=msg;}
+$("#cmd").addEventListener("submit",e=>{
+  e.preventDefault();const q=$("#cmd-in").value.trim().toLowerCase();if(!q)return;
+  if(/\b(send|email|reply|post|share|publish|tell)\b.*\b(customer|northwind|brightline|halden|client|channel)\b|\bcommit\b|\bconfirm (the )?(date|q1|q4)\b/.test(q))
+    return say("Juno: I can't do that. My skill file blocks contacting customers, sharing drafts outside you, and committing dates. I've added it to \"PM decisions needed\" instead.",true);
+  const hit=CLUSTERS.find(c=>c.title.toLowerCase().split(" ").some(w=>w.length>3&&q.includes(w)));
+  if(hit){select(hit.id);return say(`Juno: opened "${hit.title}".`);}
+  say("Juno: I didn't find a matching problem. Try naming it, e.g. \"export\", \"onboarding\" or \"SSO\".");
+});
+const mic=$("#mic");
+mic.addEventListener("click",()=>{
+  if(mic.classList.contains("on"))return;
+  mic.classList.add("on");mic.setAttribute("aria-pressed","true");mic.textContent="● Listening…";
+  setTimeout(()=>{$("#cmd-in").value="Draft the SSO spec and confirm Q1 to Halden";mic.classList.remove("on");mic.setAttribute("aria-pressed","false");mic.textContent="● Dictate";$("#cmd-in").focus();},1400);
+});
+function renderDocs(){$("#docs").innerHTML=DOCS.map(d=>`<div class="doc"><b>${esc(d[0])}</b><span class="mono muted">${esc(d[1])}</span><span class="muted">${esc(d[2])}</span></div>`).join("")}
+$("#upload").addEventListener("change",e=>{[...e.target.files].forEach(f=>DOCS.unshift([f.name,"You · just added","Juno will read this before the next draft."]));renderDocs();});
+renderList();renderDraft();renderDocs();
+</script>
+
+</body>
+</html>
